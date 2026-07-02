@@ -55,9 +55,10 @@ PLAY_SCHEDULE = [
 # 3. 機能実装部分
 # ==================================================
 
-# ① /join コマンド（スラッシュコマンド）
+# ① /join コマンド（スラッシュコマンド修正版）
 @bot.tree.command(name="join", description="実行者が参加しているボイスチャンネルに参加します")
 async def join(interaction: discord.Interaction):
+    # 実行者がボイスチャンネルにいるかチェック
     if interaction.user.voice is None or interaction.user.voice.channel is None:
         await interaction.response.send_message("エラー: 先にボイスチャンネルに参加してください！", ephemeral=True)
         return
@@ -65,13 +66,24 @@ async def join(interaction: discord.Interaction):
     voice_channel = interaction.user.voice.channel
     voice_client = interaction.guild.voice_client
 
-    if voice_client is None:
-        await voice_channel.connect()
-        await interaction.response.send_message(f"**{voice_channel.name}** に参加しました。")
-    else:
-        await voice_client.move_to(voice_channel)
-        await interaction.response.send_message(f"**{voice_channel.name}** に移動しました。")
+    # 【重要】Discordの3秒タイムアウトを回避するため、まず「考え中...」の状態にする
+    await interaction.response.defer()
 
+    try:
+        if voice_client is None:
+            # 新しく接続（少し時間がかかってもdeferしているのでエラーになりません）
+            await voice_channel.connect()
+            # deferした後にメッセージを送る場合は followup.send を使います
+            await interaction.followup.send(f"**{voice_channel.name}** に参加しました。")
+        else:
+            # すでに接続済みの場合はチャンネルを移動
+            await voice_client.move_to(voice_channel)
+            await interaction.followup.send(f"**{voice_channel.name}** に移動しました。")
+            
+    except Exception as e:
+        # 万が一、ボイスサーバーへの接続自体が完全に失敗した場合はエラーを出力
+        print(f"[Error] VC接続中にエラーが発生しました: {e}")
+        await interaction.followup.send("ボイスチャンネルへの接続に失敗しました。もう一度試してみてください。")
 
 # ② 「!1.7.0」メッセージ検知 ＆ 4連続タイマー再生
 @bot.event
