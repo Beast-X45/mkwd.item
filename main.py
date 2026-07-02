@@ -71,12 +71,11 @@ async def join(interaction: discord.Interaction):
 
     try:
         if voice_client is None:
-            # 新しく接続（少し時間がかかってもdeferしているのでエラーになりません）
-            await voice_channel.connect()
-            # deferした後にメッセージを送る場合は followup.send を使います
+            # 【修正】接続時に self_deaf=True（スピーカーミュート状態）を付与します。
+            # これを入れることでDiscordサーバー側の通信負荷が減り、海外サーバーからの接続が劇的に安定します。
+            await voice_channel.connect(self_deaf=True)
             await interaction.followup.send(f"**{voice_channel.name}** に参加しました。")
         else:
-            # すでに接続済みの場合はチャンネルを移動
             await voice_client.move_to(voice_channel)
             await interaction.followup.send(f"**{voice_channel.name}** に移動しました。")
             
@@ -139,6 +138,14 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+# Botがボイスチャンネルから切断された、または状態が変わったときに理由をログに出す
+@bot.event
+async def on_voice_state_update(member, before, after):
+    if member == bot.user:
+        # Bot自身が接続中から未接続（None）に変わった場合
+        if before.channel is not None and after.channel is None:
+            print(f"[Voice Log] ボイスチャンネルから切断されました。直前のチャンネル: {before.channel.name}")
+            # エラーのログ（例外トレースバック）が裏で発生していないか確認するためのデバッグ
 
 # 起動確認用
 @bot.event
